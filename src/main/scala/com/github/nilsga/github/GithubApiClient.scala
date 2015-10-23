@@ -4,11 +4,11 @@ import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.StatusCodes.OK
 import akka.http.scaladsl.model.headers.RawHeader
-import akka.http.scaladsl.model.{HttpRequest, ResponseEntity, Uri}
-import akka.http.scaladsl.unmarshalling.{Unmarshal, Unmarshaller}
+import akka.http.scaladsl.model.{HttpRequest, Uri}
+import akka.http.scaladsl.unmarshalling.Unmarshal
 import akka.stream.ActorMaterializer
 import com.github.nilsga.github.Dsl.UserDsl
-import de.heikoseeberger.akkahttpjson4s.Json4sSupport._
+import de.heikoseeberger.akkahttpjson4s.Json4sSupport
 import org.json4s.{DefaultFormats, jackson}
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -23,15 +23,17 @@ class GithubApiClient(val token: String)(implicit val actorSystem: ActorSystem, 
   val apiEndpoint = "https://api.github.com"
   val defaultUri = Uri(apiEndpoint)
   val authHeader = RawHeader("Authorization", s"token $token")
-  implicit val api = this
-  implicit val jacksonSerialization = jackson.Serialization
-  implicit val formats = DefaultFormats
 
   def user(userId: String)(implicit ec: ExecutionContext): UserDsl = {
     new UserDsl(userId)
   }
 
-  def request[T](path: String, params: Map[String, String] = Map())(implicit ec: ExecutionContext, um: Unmarshaller[ResponseEntity, T]) : Future[T] = {
+  def request[T](path: String, params: Map[String, String] = Map())(implicit ec: ExecutionContext, manifest: Manifest[T]) : Future[T] = {
+
+    implicit val serializer = jackson.Serialization
+    implicit val formats = DefaultFormats
+
+    import Json4sSupport._
 
     Http().singleRequest(HttpRequest(uri = uri(path, params)).withHeaders(authHeader)).flatMap(resp => {
       resp.status match {
